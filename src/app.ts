@@ -1,4 +1,4 @@
-import { CannonJSPlugin, Color3, Color4, Mesh, MeshBuilder, PhysicsImpostor, PointerEventTypes, Quaternion, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
+import { CannonJSPlugin, Color3, Color4, Mesh, MeshBuilder, PhysicsImpostor, PointerEventTypes, Quaternion, Scene, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
 import QuestScript from './framework/framework'
 // import { Level } from './scenes/scene1'
 
@@ -10,22 +10,45 @@ app.scene.debugLayer.show()
 // new Level(app.scene)
 // app.setHandMesh(level.meshes[0])
 
+enum JointStatus {
+    IDLE,
+    HOLDING,
+    DROPPING
+}
+
 class Joint {
     startDistance: Vector3
-    scene
-    controllerMesh
+    scene: Scene
+    controllerMesh: Mesh
     interactiveMeshes: Mesh[]
-    activeMesh
+    activeMesh: Mesh | undefined
+    state: JointStatus
+    desiredRotation
+    STEP = 0.05
+    MAX = 60
+    MIN = 0
 
     constructor(scene) {
+        // Scene
         this.scene = scene
+
         this.startDistance = new Vector3(0, 0, 0)
         this.interactiveMeshes = []
+        this.state = JointStatus.IDLE
+        this.desiredRotation = 0
+
+        // Active mesh
+        this.activeMesh = undefined
 
         // Controller mesh
-        this.controllerMesh = MeshBuilder.CreateBox("abc", { size: 0.1 }, this.scene)
+        this.controllerMesh = MeshBuilder.CreateBox('controllerMesh', { size: 0.1 }, this.scene)
         this.controllerMesh.visibility = 0.5
         this.controllerMesh.showBoundingBox = true
+
+        // model consts
+        this.STEP = 0.05
+        this.MAX = 60
+        this.MIN = 0
 
         // Init pointer observable
         scene.onPointerObservable.add(() => {
@@ -35,6 +58,11 @@ class Joint {
         scene.onPointerObservable.add(() => {
             this.onButtonUp()
         }, PointerEventTypes.POINTERUP)
+
+        scene.onBeforeRenderObservable.add(() => {
+            this.holdingAnimation()
+            this.dropAnimation()
+        })
     }
 
     addInteractiveMesh(mesh) {
@@ -54,41 +82,53 @@ class Joint {
         } else {
             this.controllerMesh.locallyTranslate(new Vector3(0, 0, 0))
         }
-        
     }
 
     onButtonDown() {
-        console.log('POINTER DOWN')
-        // check for collision with iteractive mesh
+        this.state = JointStatus.HOLDING
         this.interactiveMeshes.forEach(mesh => {
             this.activeMesh = mesh
-            this.startDistance.z = Math.abs(this.activeMesh.getAbsolutePivotPoint().z - this.controllerMesh.parent.position.z)
-            this.startDistance.y = Math.abs(this.activeMesh.getAbsolutePivotPoint().y - this.controllerMesh.parent.position.y)
-            // this.startDistance.y = this.controllerMesh.parent.position.y - this.activeMesh.position.y
-            // this.startDistance = this.activeMesh.position.subtract(this.controllerMesh.parent.position)
-            console.log(this.startDistance.z, this.startDistance.y)
-            // console.log(this.startDistance.z, this.startDistance.y, this.startDistance.y / this.startDistance.z, Math.tan(this.startDistance.y / this.startDistance.z))
-            MeshBuilder.CreateLines('line', {
-                points: [
-                    this.controllerMesh.parent.position,
-                    this.activeMesh.getAbsolutePivotPoint()
-                ],
-                colors: [
-                    new Color4(1, 0, 0, 1),
-                    new Color4(1, 0, 0, 1)
-                ]
-            }, this.scene);
-            const rotation = Math.tan(this.startDistance.y / this.startDistance.z)
-            // const rotation = Tools.ToRadians(90)
-            console.log(rotation)
-            this.activeMesh.rotation.x = rotation
-            
         })
-        
+    }
+
+    holdingAnimation() {
+        // check for collision with iteractive mesh        
+        if('parent' in this.controllerMesh && this.activeMesh !== undefined && this.controllerMesh !== null && this.state === JointStatus.HOLDING) {
+            this.startDistance.z = this.activeMesh.getAbsolutePivotPoint().z - this.controllerMesh.parent?.['position'].z
+            this.startDistance.y = this.activeMesh.getAbsolutePivotPoint().y - this.controllerMesh.parent?.['position'].y
+            this.startDistance.y *= -1
+            this.desiredRotation = Math.atan2(this.startDistance.y, this.startDistance.z)
+            // rotate animation
+            if(this.activeMesh.rotation.x < this.desiredRotation && this.activeMesh.rotation.x <= Tools.ToRadians(this.MAX)) {
+                if(Math.abs(this.activeMesh.rotation.x - this.desiredRotation) > this.STEP) {
+                    this.activeMesh.rotation.x += this.STEP
+                } else {
+                    this.activeMesh.rotation.x = this.desiredRotation
+                }
+            }
+            if(this.activeMesh.rotation.x > this.desiredRotation && this.activeMesh.rotation.x >= Tools.ToRadians(this.MIN)) {
+                if(Math.abs(this.activeMesh.rotation.x - this.desiredRotation) > this.STEP) {
+                    this.activeMesh.rotation.x -= this.STEP
+                } else {
+                    this.activeMesh.rotation.x = this.desiredRotation
+                }
+            }
+        }
+    }
+
+    dropAnimation() {
+        if(this.activeMesh !== undefined && this.state === JointStatus.DROPPING) {
+            if(this.activeMesh.rotation.x >= Tools.ToRadians(this.MIN) + this.STEP){
+                this.activeMesh.rotation.x -= this.STEP
+            } else {
+                this.state = JointStatus.IDLE
+                this.activeMesh.rotation.x = this.MIN
+            }
+        }
     }
 
     onButtonUp() {
-        console.log('POINTER UP')
+        this.state = JointStatus.DROPPING
     }
 }
 
