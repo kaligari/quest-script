@@ -62,13 +62,16 @@ class Joint {
         // check for collision with iteractive mesh
         this.interactiveMeshes.forEach(mesh => {
             this.activeMesh = mesh
-            this.startDistance.z = this.activeMesh.position.z - this.controllerMesh.parent.position.z
-            this.startDistance.y = this.controllerMesh.parent.position.y - this.activeMesh.position.y
-            console.log(this.startDistance.z, this.startDistance.y, this.startDistance.y / this.startDistance.z, Math.tan(this.startDistance.y / this.startDistance.z))
+            this.startDistance.z = Math.abs(this.activeMesh.getAbsolutePivotPoint().z - this.controllerMesh.parent.position.z)
+            this.startDistance.y = Math.abs(this.activeMesh.getAbsolutePivotPoint().y - this.controllerMesh.parent.position.y)
+            // this.startDistance.y = this.controllerMesh.parent.position.y - this.activeMesh.position.y
+            // this.startDistance = this.activeMesh.position.subtract(this.controllerMesh.parent.position)
+            console.log(this.startDistance.z, this.startDistance.y)
+            // console.log(this.startDistance.z, this.startDistance.y, this.startDistance.y / this.startDistance.z, Math.tan(this.startDistance.y / this.startDistance.z))
             MeshBuilder.CreateLines('line', {
                 points: [
                     this.controllerMesh.parent.position,
-                    this.activeMesh.position
+                    this.activeMesh.getAbsolutePivotPoint()
                 ],
                 colors: [
                     new Color4(1, 0, 0, 1),
@@ -210,6 +213,8 @@ const cover = MeshBuilder.CreateBox('cover', {
     depth: 0.4,
     height: 0.05
 }, app.scene)
+cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
+cover.rotation.x = Tools.ToRadians(45)
 cover.position = new Vector3(0, 1.025, globalZ)
 cover.material = blueMaterial
 // const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
