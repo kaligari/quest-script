@@ -24,8 +24,8 @@ export default class QuestScript {
         const light = new HemisphericLight("light", new Vector3(0, 1, 0), this.scene)
         light.intensity = 0.7
 
-        this.camera = new FreeCamera('FlyCamera', new Vector3(0, 5, -6), this.scene)
-        this.camera.setTarget(Vector3.Zero())
+        this.camera = new FreeCamera('FlyCamera', new Vector3(0, 5, 0), this.scene)
+        this.camera.setTarget(new Vector3(0, 1, 3))
         this.camera.attachControl(this.canvas, true)
 
         // init WebXR
@@ -55,39 +55,30 @@ export default class QuestScript {
 
     async initWebXR() {
         
-        // WebXR controlls
+        // // WebXR controlls
         // const makeGrabAreaMesh = (mesh, handedness) => {
         //     let myGrabBox = MeshBuilder.CreateBox("abc", { size: 0.1 }, this.scene)
-        //     myGrabBox.position.copyFrom(mesh.position)
-        //     myGrabBox.visibility = 0.5
-        //     myGrabBox.showBoundingBox = true
-        //     myGrabBox.setParent(mesh)
-        //     if (handedness[0] === 'l') {
-        //         myGrabBox.locallyTranslate(new Vector3(0.1, 0, 0))
-        //     } else {
-        //         myGrabBox.locallyTranslate(new Vector3(-0.1, 0, 0))
-        //     }
-        //     return myGrabBox
+        //    myGrabBox.visibility = 0.5
+        //    myGrabBox.showBoundingBox = true
+        //    myGrabBox.setParent(mesh)
+        //    myGrabBox.position = Vector3.ZeroReadOnly;
+        //    myGrabBox.rotationQuaternion = Quaternion.Identity();
+        //    if (handedness[0] === 'l') {
+        //      myGrabBox.locallyTranslate(new Vector3(0.1, 0, 0))
+        //    } else {
+        //      myGrabBox.locallyTranslate(new Vector3(-0.1, 0, 0))
+        //    }
+        //    return myGrabBox
         // }
 
         // this.xr = await this.scene.createDefaultXRExperienceAsync({})
         
-        // this.xr.input.onControllerAddedObservable.add(controller => {
-        //     controller.onMotionControllerInitObservable.add(motionController => {
-
-        //         if (motionController.handness === 'right') {
-        //             motionController.onModelLoadedObservable.add(() => {
-        //                 let mesh = controller.grip
-        //                 makeGrabAreaMesh(mesh, motionController.handedness)
-        //             })
-        //             motionController.getMainComponent().onButtonStateChangedObservable.add((component) => {
-        //                 if (component.changes.pressed) {
-        //                     if (component.pressed) {
-
-        //                     }
-        //                 }
-        //             })
-        //         }
+        // this.xr.input.onControllerAddedObservable.add(inputSource => {
+        //     inputSource.onMotionControllerInitObservable.add(motionController => {
+        //       motionController.onModelLoadedObservable.add(() => {
+        //         let mesh = inputSource.grip
+        //         makeGrabAreaMesh(mesh, motionController.handedness)
+        //       })
         //     })
         // })
     }
