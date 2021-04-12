@@ -15,9 +15,9 @@ enum QuestJointState {
 }
 
 enum QuestJointTransform {
-    TRANSLATION = 'translation',
+    POSITION = 'position',
     ROTATION = 'rotation',
-    SCALE = 'scale'
+    SCALING = 'scaling'
 }
 
 enum QuestJointAxis {
@@ -105,26 +105,30 @@ class QuestJoint {
             startDistance.z = this.activeMesh.getAbsolutePivotPoint().z - this.instance.controllerMesh.parent?.['position'].z
             startDistance.y = this.activeMesh.getAbsolutePivotPoint().y - this.instance.controllerMesh.parent?.['position'].y
             startDistance.y *= -1
-            const desiredRotation = Math.atan2(startDistance.y, startDistance.z)
-
-            if(this.activeMesh.rotation[this.axis] < desiredRotation) {
-                if(this.activeMesh.rotation[this.axis] < Tools.ToRadians(this.MAX)) {
-                    if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
-                        this.activeMesh.rotation[this.axis] += this.STEP
-                    } else {
-                        this.activeMesh.rotation[this.axis] = desiredRotation
+            switch(this.transform) {
+                case QuestJointTransform.ROTATION:
+                    const desiredRotation = Math.atan2(startDistance.y, startDistance.z)
+        
+                    if(this.activeMesh.rotation[this.axis] < desiredRotation) {
+                        if(this.activeMesh.rotation[this.axis] < Tools.ToRadians(this.MAX)) {
+                            if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
+                                this.activeMesh.rotation[this.axis] += this.STEP
+                            } else {
+                                this.activeMesh.rotation[this.axis] = desiredRotation
+                            }
+                        }
                     }
-                }
-            }
-
-            if(this.activeMesh.rotation[this.axis] > desiredRotation) {
-                if(this.activeMesh.rotation[this.axis] > Tools.ToRadians(this.MIN)) {
-                    if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
-                        this.activeMesh.rotation[this.axis] -= this.STEP
-                    } else {
-                        this.activeMesh.rotation[this.axis] = desiredRotation
+        
+                    if(this.activeMesh.rotation[this.axis] > desiredRotation) {
+                        if(this.activeMesh.rotation[this.axis] > Tools.ToRadians(this.MIN)) {
+                            if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
+                                this.activeMesh.rotation[this.axis] -= this.STEP
+                            } else {
+                                this.activeMesh.rotation[this.axis] = desiredRotation
+                            }
+                        }
                     }
-                }
+                    break;
             }
         }
     }
