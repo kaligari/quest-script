@@ -6,136 +6,144 @@ const app = new QuestScript()
 app.scene.debugLayer.show()
 
 // app.scene.debugLayer.show()
-
 // new Level(app.scene)
 // app.setHandMesh(level.meshes[0])
-
-enum JointStatus {
+enum QuestJointState {
     IDLE,
     HOLDING,
     DROPPING
 }
 
-class Joint {
-    startDistance: Vector3
+enum QuestJointTransform {
+    TRANSLATION = 'translation',
+    ROTATION = 'rotation',
+    SCALE = 'scale'
+}
+
+enum QuestJointAxis {
+    X = 'x',
+    Y = 'y',
+    Z = 'z'
+}
+
+type QuestJointParams = {
+    transform: QuestJointTransform
+    axis: QuestJointAxis
+}
+
+class QuestJointController {
     scene: Scene
     controllerMesh: Mesh
-    interactiveMeshes: Mesh[]
-    activeMesh: Mesh | undefined
-    state: JointStatus
-    desiredRotation
-    STEP = 0.05
-    MAX = 60
-    MIN = 0
-
-    constructor(scene) {
-        // Scene
+    
+    constructor(scene: Scene) {
+        // Bind with scene
         this.scene = scene
-
-        this.startDistance = new Vector3(0, 0, 0)
-        this.interactiveMeshes = []
-        this.state = JointStatus.IDLE
-        this.desiredRotation = 0
-
-        // Active mesh
-        this.activeMesh = undefined
 
         // Controller mesh
         this.controllerMesh = MeshBuilder.CreateBox('controllerMesh', { size: 0.1 }, this.scene)
         this.controllerMesh.visibility = 0.5
         this.controllerMesh.showBoundingBox = true
+    }
 
-        // model consts
+    addMeshController(mesh) {
+        this.controllerMesh.setParent(mesh)
+        this.controllerMesh.position = Vector3.ZeroReadOnly;
+        this.controllerMesh.rotationQuaternion = Quaternion.Identity();
+    }
+}
+
+class QuestJoint {
+    instance: QuestJointController
+    state: QuestJointState
+    activeMesh: Mesh
+    transform: QuestJointTransform
+    axis: QuestJointAxis
+    STEP = 0.05
+    MAX = 60
+    MIN = 0
+
+    constructor(
+        instance: QuestJointController,
+        mesh: Mesh,
+        params: QuestJointParams
+    ) {        
+        this.transform = params.transform
+        this.axis = params.axis
+        
+        // Init
+        this.instance = instance
+        this.state = QuestJointState.IDLE
+        this.activeMesh = mesh
+
+        // Model consts
         this.STEP = 0.05
         this.MAX = 60
         this.MIN = 0
 
-        // Init pointer observable
-        scene.onPointerObservable.add(() => {
-            this.onButtonDown()
+        // Init buttons observable
+        this.instance.scene.onPointerObservable.add(() => {
+            // Check if mesh is intersecting with controller mesh
+            if (this.activeMesh.intersectsMesh(this.instance.controllerMesh, false)) {
+                this.state = QuestJointState.HOLDING
+            }
         }, PointerEventTypes.POINTERDOWN)
 
-        scene.onPointerObservable.add(() => {
-            this.onButtonUp()
+        this.instance.scene.onPointerObservable.add(() => {
+            this.state = QuestJointState.DROPPING
         }, PointerEventTypes.POINTERUP)
 
-        scene.onBeforeRenderObservable.add(() => {
+        this.instance.scene.onBeforeRenderObservable.add(() => {
             this.holdingAnimation()
             this.dropAnimation()
         })
     }
 
-    addInteractiveMesh(mesh) {
-        const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
-        pinkMaterial.diffuseColor = new Color3(1, 0, 1)
-        cover.material = pinkMaterial
-        this.interactiveMeshes.push(mesh)
-    }
-
-    // WebXR controlls
-    makeGrabAreaMesh(mesh, motionController) {
-        this.controllerMesh.setParent(mesh)
-        this.controllerMesh.position = Vector3.ZeroReadOnly;
-        this.controllerMesh.rotationQuaternion = Quaternion.Identity();
-        if (motionController.handedness[0] === 'l') {
-            this.controllerMesh.locallyTranslate(new Vector3(0, 0, 0))
-        } else {
-            this.controllerMesh.locallyTranslate(new Vector3(0, 0, 0))
-        }
-    }
-
-    onButtonDown() {
-        this.state = JointStatus.HOLDING
-        this.interactiveMeshes.forEach(mesh => {
-            this.activeMesh = mesh
-        })
-    }
-
     holdingAnimation() {
-        // check for collision with iteractive mesh        
-        if('parent' in this.controllerMesh && this.activeMesh !== undefined && this.controllerMesh !== null && this.state === JointStatus.HOLDING) {
-            this.startDistance.z = this.activeMesh.getAbsolutePivotPoint().z - this.controllerMesh.parent?.['position'].z
-            this.startDistance.y = this.activeMesh.getAbsolutePivotPoint().y - this.controllerMesh.parent?.['position'].y
-            this.startDistance.y *= -1
-            this.desiredRotation = Math.atan2(this.startDistance.y, this.startDistance.z)
-            // rotate animation
-            if(this.activeMesh.rotation.x < this.desiredRotation && this.activeMesh.rotation.x <= Tools.ToRadians(this.MAX)) {
-                if(Math.abs(this.activeMesh.rotation.x - this.desiredRotation) > this.STEP) {
-                    this.activeMesh.rotation.x += this.STEP
-                } else {
-                    this.activeMesh.rotation.x = this.desiredRotation
+        if(this.instance.controllerMesh !== null && this.state === QuestJointState.HOLDING) {
+            const startDistance = new Vector3(0, 0, 0)
+            startDistance.x = this.activeMesh.getAbsolutePivotPoint().x - this.instance.controllerMesh.parent?.['position'].x
+            startDistance.z = this.activeMesh.getAbsolutePivotPoint().z - this.instance.controllerMesh.parent?.['position'].z
+            startDistance.y = this.activeMesh.getAbsolutePivotPoint().y - this.instance.controllerMesh.parent?.['position'].y
+            startDistance.y *= -1
+            const desiredRotation = Math.atan2(startDistance.y, startDistance.z)
+
+            if(this.activeMesh.rotation[this.axis] < desiredRotation) {
+                if(this.activeMesh.rotation[this.axis] < Tools.ToRadians(this.MAX)) {
+                    if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
+                        this.activeMesh.rotation[this.axis] += this.STEP
+                    } else {
+                        this.activeMesh.rotation[this.axis] = desiredRotation
+                    }
                 }
             }
-            if(this.activeMesh.rotation.x > this.desiredRotation && this.activeMesh.rotation.x >= Tools.ToRadians(this.MIN)) {
-                if(Math.abs(this.activeMesh.rotation.x - this.desiredRotation) > this.STEP) {
-                    this.activeMesh.rotation.x -= this.STEP
-                } else {
-                    this.activeMesh.rotation.x = this.desiredRotation
+
+            if(this.activeMesh.rotation[this.axis] > desiredRotation) {
+                if(this.activeMesh.rotation[this.axis] > Tools.ToRadians(this.MIN)) {
+                    if(Math.abs(this.activeMesh.rotation[this.axis] - desiredRotation) > this.STEP) {
+                        this.activeMesh.rotation[this.axis] -= this.STEP
+                    } else {
+                        this.activeMesh.rotation[this.axis] = desiredRotation
+                    }
                 }
             }
         }
     }
 
     dropAnimation() {
-        if(this.activeMesh !== undefined && this.state === JointStatus.DROPPING) {
-            if(this.activeMesh.rotation.x >= Tools.ToRadians(this.MIN) + this.STEP){
-                this.activeMesh.rotation.x -= this.STEP
+        if(this.activeMesh !== undefined && this.state === QuestJointState.DROPPING) {
+            if(this.activeMesh.rotation[this.axis] >= Tools.ToRadians(this.MIN) + this.STEP){
+                this.activeMesh.rotation[this.axis] -= this.STEP
             } else {
-                this.state = JointStatus.IDLE
-                this.activeMesh.rotation.x = this.MIN
+                this.state = QuestJointState.IDLE
+                this.activeMesh.rotation[this.axis] = this.MIN
             }
         }
     }
-
-    onButtonUp() {
-        this.state = JointStatus.DROPPING
-    }
 }
 
-const joints = new Joint(app.scene)
+const jointsController = new QuestJointController(app.scene)
 
 const setupXR = async (scene) => {
-    let meshController = new Mesh('meshController', scene)
     
     const xrHelper = await scene.createDefaultXRExperienceAsync({ floorMeshes: [ground] })
     
@@ -143,90 +151,12 @@ const setupXR = async (scene) => {
         inputSource.onMotionControllerInitObservable.add(motionController => {
             // add observable
             motionController.onModelLoadedObservable.add(() => {
-                if(motionController.handedness === 'right') {
-                    meshController = inputSource.grip as Mesh                
-                    let mesh = inputSource.grip
-                    joints.makeGrabAreaMesh(mesh, motionController)
+                if(motionController.handedness === 'right') {      
+                    jointsController.addMeshController(inputSource.grip)
                 }
             })            
         })
     })
-
-    // scene.onPointerObservable.add((pointerInfo) => {
-    //     console.log('POINTER DOWN', pointerInfo)
-
-    //     // if (xrHelper.baseExperience.state === WebXRState.IN_XR) {
-    //     //     let xrInput = xrHelper.pointerSelection.getXRControllerByPointerId(pointerInfo.event.pointerId)
-    //     //     if(xrInput) {
-    //     //         let motionController = xrInput.motionController
-    //     //         if (motionController) {
-
-    //     //         }
-    //     //     }
-    //     // }
-    // })
-
-    // scene.onPointerObservable.add((pointerInfo) => {
-    //     joins.controllerPositionOnStart
-    //     console.log('POINTER DOWN', pointerInfo)
-    //     if (xrHelper.baseExperience.state === WebXRState.IN_XR) {
-    //         let xrInput = xrHelper.pointerSelection.getXRControllerByPointerId(pointerInfo.event.pointerId)
-    //         if(xrInput) {
-    //             let motionController = xrInput.motionController
-    //             if (motionController) {
-    //             }
-    //         }
-    //     }
-    //     // if (pointerInfo.pickInfo.hit && pointerInfo.pickInfo.pickedMesh) {
-    //     //     // "Grab" it by attaching the picked mesh to the VR Controller
-    //     //     if (xrHelper.baseExperience.state === WebXRState.IN_XR) {
-    //     //         let xrInput = xrHelper.pointerSelection.getXRControllerByPointerId(pointerInfo.event.pointerId)
-    //     //         if(xrInput) {
-    //     //             let motionController = xrInput.motionController
-    //     //             if (motionController) {
-    //     //                 grabbedMesh = pointerInfo.pickInfo.pickedMesh
-    //     //                 if(grabbedMesh.physicsImpostor) {
-    //     //                     console.log(motionController.handedness)
-    //     //                     if(motionController.handedness === 'right') {
-    //     //                         grabbedMesh.setParent(meshController)
-    //     //                         grabbedMesh.position = Vector3.ZeroReadOnly;
-    //     //                         grabbedMesh.rotationQuaternion = Quaternion.Identity();
-    //     //                         grabbedMesh.locallyTranslate(new Vector3(0, -.5, 1))
-    //     //                     }
-    //     //                     // mesh.setParent(motionController.rootMesh)
-    //     //                 }
-    //     //             }
-    //     //         }
-    //     //     }
-    //     // }
-    // }, PointerEventTypes.POINTERDOWN)
-
-    // scene.onPointerObservable.add((pointerInfo) => {
-    //     // grabbedMesh.setParent(null)
-    //     console.log('POINTER UP', pointerInfo)
-    //     // if(typeof grabbedMesh !== null && grabbedMesh.physicsImpostor) {
-    //     //     grabbedMesh.physicsImpostor.mass = 1
-    //     // }
-    //     // if (pointerInfo.pickInfo.hit && pointerInfo.pickInfo.pickedMesh) {
-    //     //     // "Grab" it by attaching the picked mesh to the VR Controller
-    //     //     if (xrHelper.baseExperience.state === WebXRState.IN_XR) {
-    //     //         // console.log(grabbedMesh)
-    //     //         // grabbedMesh.setParent(null)
-    //     //         // if(typeof grabbedMesh !== null && grabbedMesh.physicsImpostor) {
-    //     //         //     grabbedMesh.physicsImpostor.mass = 1
-    //     //         // }
-    //     //         // let xrInput = xrHelper.pointerSelection.getXRControllerByPointerId(pointerInfo.event.pointerId)
-    //     //         // if(xrInput) {
-    //     //         //     let motionController = xrInput.motionController
-    //     //         //     if (motionController) {
-    //     //         //         const mesh = pointerInfo.pickInfo.pickedMesh
-    //     //         //         mesh.physicsImpostor.mass = tmpMass
-    //     //         //         mesh.setParent(null)
-    //     //         //     }
-    //     //         // }
-    //     //     }
-    //     // }
-    // }, PointerEventTypes.POINTERUP)
 }
 
 const globalZ = 0.5
@@ -242,11 +172,24 @@ const box = MeshBuilder.CreateBox('box', {
     depth: 0.4,
     height: 1
 }, app.scene); 
+box.setPivotPoint(new Vector3(0, 0, 0.2))
 box.position = new Vector3(0, 0.5, globalZ)
 const blueMaterial = new StandardMaterial('blueMaterial', app.scene)
 blueMaterial.diffuseColor = new Color3(0, 0, 1)
 box.material = blueMaterial
 
+const box2 = MeshBuilder.CreateBox('box', {
+    width: 0.4,
+    depth: 0.4,
+    height: 1
+}, app.scene); 
+box2.setPivotPoint(new Vector3(0, 0, 0.2))
+box2.position = new Vector3(1, 0.5, globalZ)
+box2.rotation = new Vector3(0, 45, 0)
+box2.material = blueMaterial
+
+const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
+pinkMaterial.diffuseColor = new Color3(1, 0, 1)
 
 const cover = MeshBuilder.CreateBox('cover', {
     width: 0.4,
@@ -254,13 +197,26 @@ const cover = MeshBuilder.CreateBox('cover', {
     height: 0.05
 }, app.scene)
 cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
-cover.rotation.x = Tools.ToRadians(45)
+// cover.rotation.x = Tools.ToRadians(45)
 cover.position = new Vector3(0, 1.025, globalZ)
-cover.material = blueMaterial
-// const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
-// pinkMaterial.diffuseColor = new Color3(1, 0, 1)
-// cover.material = pinkMaterial
+cover.material = pinkMaterial
+new QuestJoint(jointsController, cover, {
+    transform: QuestJointTransform.ROTATION,
+    axis: QuestJointAxis.X
+})
 
-joints.addInteractiveMesh(cover)
+const cover2 = MeshBuilder.CreateBox('cover', {
+    width: 0.4,
+    depth: 0.4,
+    height: 0.05
+}, app.scene)
+cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
+cover2.position = new Vector3(1, 1.025, globalZ)
+cover2.rotation = new Vector3(0, 45, 0)
+cover2.material = pinkMaterial
+new QuestJoint(jointsController, cover2, {
+    transform: QuestJointTransform.ROTATION,
+    axis: QuestJointAxis.Z
+})
 
 setupXR(app.scene)
