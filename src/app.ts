@@ -150,13 +150,15 @@ class QuestJoint {
                     break;
             }
             // Transform mesh
+            let meshTransform
             if(desiredValue > max) {
-                this.mesh[this.transformType][this.axis] = max
+                meshTransform  = max
             } else if(desiredValue < min) {
-                this.mesh[this.transformType][this.axis] = min
+                meshTransform  = min
             } else {
-                this.mesh[this.transformType][this.axis] = desiredValue
+                meshTransform = desiredValue
             }
+            this.mesh[this.transformType][this.axis] = meshTransform
         }
     }
 
@@ -225,6 +227,7 @@ const box = MeshBuilder.CreateBox('box', {
 }, app.scene); 
 box.setPivotPoint(new Vector3(0, 0, 0.2))
 box.position = new Vector3(0, 0.5, globalZ)
+// box.rotation = new Vector3(0, 45, 0)
 box.material = blueMaterial
 
 const cover = MeshBuilder.CreateBox('cover', {
@@ -234,6 +237,7 @@ const cover = MeshBuilder.CreateBox('cover', {
 }, app.scene)
 cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
 cover.position = new Vector3(0, 1.025, globalZ)
+// cover.rotation = new Vector3(0, 45, 0)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
     transformType: QuestJointTransform.POSITION,
@@ -250,6 +254,7 @@ const box2 = MeshBuilder.CreateBox('box', {
 }, app.scene); 
 box2.setPivotPoint(new Vector3(0, 0, 0.2))
 box2.position = new Vector3(1, 0.5, globalZ)
+// box2.rotation = new Vector3(0, 45, 0)
 box2.material = blueMaterial
 
 const cover2 = MeshBuilder.CreateBox('cover', {
@@ -259,6 +264,7 @@ const cover2 = MeshBuilder.CreateBox('cover', {
 }, app.scene)
 cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
 cover2.position = new Vector3(1, 1.025, globalZ)
+// cover2.rotation = new Vector3(0, 45, 0)
 cover2.material = pinkMaterial
 new QuestJoint(jointsController, cover2, {
     transformType: QuestJointTransform.ROTATION,
