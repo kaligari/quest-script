@@ -64,12 +64,14 @@ class QuestJoint {
     step: number
     max: number
     min: number
-    maxPosition: number | undefined
-    minPosition: number | undefined
-    initObjectPosition: number | undefined
-    initOnceObjectPosition: number | undefined
-    initControllerPosition: number | undefined
-    initDistance: number | undefined
+    maxPosition: number
+    minPosition: number
+    initObjectPosition: number
+    initOnceObjectPosition: number
+    initControllerPosition: number
+    initDistance: number
+    isInitOnce: boolean
+    isInit: boolean
 
     constructor(
         instance: QuestJointController,
@@ -80,12 +82,14 @@ class QuestJoint {
         this.instance = instance
         this.state = QuestJointState.IDLE
         this.mesh = mesh
-        this.initObjectPosition = undefined
-        this.initOnceObjectPosition = undefined
-        this.initControllerPosition = undefined
-        this.maxPosition = undefined
-        this.minPosition = undefined
-        this.initDistance = undefined
+        this.initObjectPosition = 0
+        this.initOnceObjectPosition = 0
+        this.initControllerPosition = 0
+        this.maxPosition = 0
+        this.minPosition = 0
+        this.initDistance = 0
+        this.isInitOnce = false
+        this.isInit = false
         
         // Params
         this.transformType = params.transformType
@@ -96,25 +100,23 @@ class QuestJoint {
 
         // Init buttons observable
         this.instance.scene.onPointerObservable.add(() => {
-            if(this.initObjectPosition === undefined) {
+            if(!this.isInit) {
+                console.log('isInit');
                 this.initObjectPosition = this.mesh.position[this.axis]
-            }
-            if(this.initOnceObjectPosition === undefined) {
-                this.initOnceObjectPosition = this.mesh.position[this.axis]
-            }
-            if(this.maxPosition === undefined && this.initObjectPosition !== undefined) {
-                this.maxPosition = this.initObjectPosition + this.max
-            }
-            if(this.minPosition === undefined && this.initObjectPosition !== undefined) {
-                this.minPosition = this.initObjectPosition + this.min
-            }
-            if(this.initControllerPosition === undefined) {
                 this.initControllerPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
+                this.initDistance = this.initObjectPosition - this.initControllerPosition
+                console.log(this.initDistance)
+                
+                this.isInit = true
             }
-            if(this.initDistance === undefined && this.initControllerPosition !== undefined) {
-                this.initDistance = Math.abs(this.initObjectPosition - this.initControllerPosition)
-                console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
+            if(!this.isInitOnce) {
+                console.log('isInitOnce');
+                this.initOnceObjectPosition = this.mesh.position[this.axis]
+                this.maxPosition = this.initOnceObjectPosition + this.max
+                this.minPosition = this.initOnceObjectPosition + this.min
+                this.isInitOnce = true
             }
+            // console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
             // Check if mesh is intersecting with controller mesh
             if (this.mesh.intersectsMesh(this.instance.controllerMesh, false)) {
                 this.state = QuestJointState.HOLDING
@@ -124,10 +126,8 @@ class QuestJoint {
 
         this.instance.scene.onPointerObservable.add(() => {
             this.state = QuestJointState.DROPPING
-            console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
-            this.initObjectPosition = undefined
-            this.initControllerPosition = undefined
-            this.initDistance = undefined
+            this.isInit = false
+            // console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
         }, PointerEventTypes.POINTERUP)
 
         this.instance.scene.onBeforeRenderObservable.add(() => {
@@ -171,10 +171,15 @@ class QuestJoint {
                     break;
                 case QuestJointTransform.POSITION:
                     if(this.initDistance) {
-                        const controllerPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
+                        const desiredPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`] + this.initDistance
                         
-
-                        this.mesh.position[this.axis] = controllerPosition + this.initDistance
+                        if(desiredPosition > this.maxPosition) {
+                            this.mesh.position[this.axis] = this.maxPosition
+                        } else if(desiredPosition < this.minPosition) {
+                            this.mesh.position[this.axis] = this.minPosition
+                        } else {
+                            this.mesh.position[this.axis] = desiredPosition
+                        }
                     }
                     
                     break;
@@ -243,15 +248,15 @@ const blueMaterial = new StandardMaterial('blueMaterial', app.scene)
 blueMaterial.diffuseColor = new Color3(0, 0, 1)
 box.material = blueMaterial
 
-const box2 = MeshBuilder.CreateBox('box', {
-    width: 0.4,
-    depth: 0.4,
-    height: 1
-}, app.scene); 
-box2.setPivotPoint(new Vector3(0, 0, 0.2))
-box2.position = new Vector3(1, 0.5, globalZ)
-box2.rotation = new Vector3(0, 45, 0)
-box2.material = blueMaterial
+// const box2 = MeshBuilder.CreateBox('box', {
+//     width: 0.4,
+//     depth: 0.4,
+//     height: 1
+// }, app.scene); 
+// box2.setPivotPoint(new Vector3(0, 0, 0.2))
+// box2.position = new Vector3(1, 0.5, globalZ)
+// box2.rotation = new Vector3(0, 45, 0)
+// box2.material = blueMaterial
 
 const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
 pinkMaterial.diffuseColor = new Color3(1, 0, 1)
@@ -278,21 +283,21 @@ new QuestJoint(jointsController, cover, {
     // max: 60
 })
 
-const cover2 = MeshBuilder.CreateBox('cover', {
-    width: 0.4,
-    depth: 0.4,
-    height: 0.05
-}, app.scene)
-cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
-cover2.position = new Vector3(1, 1.025, globalZ)
-cover2.rotation = new Vector3(0, 45, 0)
-cover2.material = pinkMaterial
-new QuestJoint(jointsController, cover2, {
-    transformType: QuestJointTransform.ROTATION,
-    axis: QuestJointAxis.Z,
-    step: 0.02,
-    min: 0,
-    max: 60
-})
+// const cover2 = MeshBuilder.CreateBox('cover', {
+//     width: 0.4,
+//     depth: 0.4,
+//     height: 0.05
+// }, app.scene)
+// cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
+// cover2.position = new Vector3(1, 1.025, globalZ)
+// cover2.rotation = new Vector3(0, 45, 0)
+// cover2.material = pinkMaterial
+// new QuestJoint(jointsController, cover2, {
+//     transformType: QuestJointTransform.ROTATION,
+//     axis: QuestJointAxis.Z,
+//     step: 0.02,
+//     min: 0,
+//     max: 60
+// })
 
 setupXR(app.scene)
