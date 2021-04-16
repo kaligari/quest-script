@@ -58,20 +58,21 @@ class QuestJointController {
 class QuestJoint {
     instance: QuestJointController
     state: QuestJointState
+    // State
+    isInitOnce: boolean
+    isInit: boolean
+    // Params
     mesh: Mesh
     transformType: QuestJointTransform
     axis: QuestJointAxis
     step: number
     max: number
     min: number
+    // Init mesh params
     maxPosition: number
     minPosition: number
-    initObjectPosition: number
-    initOnceObjectPosition: number
-    initControllerPosition: number
+    // Distance between mesh and controller - once on every pointer down 
     initDistance: number
-    isInitOnce: boolean
-    isInit: boolean
 
     constructor(
         instance: QuestJointController,
@@ -82,14 +83,13 @@ class QuestJoint {
         this.instance = instance
         this.state = QuestJointState.IDLE
         this.mesh = mesh
-        this.initObjectPosition = 0
-        this.initOnceObjectPosition = 0
-        this.initControllerPosition = 0
-        this.maxPosition = 0
-        this.minPosition = 0
-        this.initDistance = 0
+        
         this.isInitOnce = false
         this.isInit = false
+        
+        this.initDistance = 0
+        this.maxPosition = 0
+        this.minPosition = 0
         
         // Params
         this.transformType = params.transformType
@@ -100,34 +100,28 @@ class QuestJoint {
 
         // Init buttons observable
         this.instance.scene.onPointerObservable.add(() => {
+            // Init every pointerdown
             if(!this.isInit) {
-                console.log('isInit');
-                this.initObjectPosition = this.mesh.position[this.axis]
-                this.initControllerPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
-                this.initDistance = this.initObjectPosition - this.initControllerPosition
-                console.log(this.initDistance)
-                
+                this.initDistance = this.mesh.position[this.axis] - this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
                 this.isInit = true
             }
+            // Init once since models are loaded
             if(!this.isInitOnce) {
-                console.log('isInitOnce');
-                this.initOnceObjectPosition = this.mesh.position[this.axis]
-                this.maxPosition = this.initOnceObjectPosition + this.max
-                this.minPosition = this.initOnceObjectPosition + this.min
+                this.maxPosition = this.mesh.position[this.axis] + this.max
+                this.minPosition = this.mesh.position[this.axis] + this.min
                 this.isInitOnce = true
             }
-            // console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
             // Check if mesh is intersecting with controller mesh
             if (this.mesh.intersectsMesh(this.instance.controllerMesh, false)) {
                 this.state = QuestJointState.HOLDING
-                // console.log('holding')
             }
         }, PointerEventTypes.POINTERDOWN)
 
         this.instance.scene.onPointerObservable.add(() => {
+            // Change state
             this.state = QuestJointState.DROPPING
+            // Reset state
             this.isInit = false
-            // console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
         }, PointerEventTypes.POINTERUP)
 
         this.instance.scene.onBeforeRenderObservable.add(() => {
@@ -171,6 +165,8 @@ class QuestJoint {
                     break;
                 case QuestJointTransform.POSITION:
                     if(this.initDistance) {
+                        // Calc desired position based on current controller position
+                        // and distance between mesh and controller
                         const desiredPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`] + this.initDistance
                         
                         if(desiredPosition > this.maxPosition) {
@@ -181,7 +177,6 @@ class QuestJoint {
                             this.mesh.position[this.axis] = desiredPosition
                         }
                     }
-                    
                     break;
             }
         }
