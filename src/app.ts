@@ -29,7 +29,6 @@ enum QuestJointAxis {
 type QuestJointParams = {
     transformType: QuestJointTransform
     axis: QuestJointAxis
-    step: number
     min: number
     max: number
 }
@@ -65,7 +64,6 @@ class QuestJoint {
     mesh: Mesh
     transformType: QuestJointTransform
     axis: QuestJointAxis
-    step: number
     max: number
     min: number
     // Init mesh params
@@ -94,7 +92,6 @@ class QuestJoint {
         // Params
         this.transformType = params.transformType
         this.axis = params.axis
-        this.step = params.step
         this.min = params.min
         this.max = params.max
 
@@ -167,12 +164,12 @@ class QuestJoint {
         if(this.mesh !== undefined && this.state === QuestJointState.DROPPING) {
             switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
-                    if(this.mesh.rotation[this.axis] >= Tools.ToRadians(this.min) + this.step){
-                        this.mesh.rotation[this.axis] -= this.step
-                    } else {
-                        this.state = QuestJointState.IDLE
-                        this.mesh.rotation[this.axis] = this.min
-                    }
+                    // if(this.mesh.rotation[this.axis] >= Tools.ToRadians(this.min) + this.step){
+                    //     this.mesh.rotation[this.axis] -= this.step
+                    // } else {
+                    //     this.state = QuestJointState.IDLE
+                    //     this.mesh.rotation[this.axis] = this.min
+                    // }
                     break;
                 case QuestJointTransform.POSITION:
                     // if(this.initObjectPosition && this.mesh.position[this.axis] >= this.initObjectPosition[this.axis] + this.min + this.step){
@@ -207,12 +204,20 @@ const setupXR = async (scene) => {
 
 const globalZ = 0.5
 
+// Ground
 const ground = MeshBuilder.CreateGround('ground', {
     width: 16,
     height: 16
 }, app.scene)
 ground.position = new Vector3(0, 0, globalZ)
 
+// Materials
+const blueMaterial = new StandardMaterial('blueMaterial', app.scene)
+blueMaterial.diffuseColor = new Color3(0, 0, 1)
+const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
+pinkMaterial.diffuseColor = new Color3(1, 0, 1)
+
+// Box 1
 const box = MeshBuilder.CreateBox('box', {
     width: 0.4,
     depth: 0.4,
@@ -220,22 +225,7 @@ const box = MeshBuilder.CreateBox('box', {
 }, app.scene); 
 box.setPivotPoint(new Vector3(0, 0, 0.2))
 box.position = new Vector3(0, 0.5, globalZ)
-const blueMaterial = new StandardMaterial('blueMaterial', app.scene)
-blueMaterial.diffuseColor = new Color3(0, 0, 1)
 box.material = blueMaterial
-
-// const box2 = MeshBuilder.CreateBox('box', {
-//     width: 0.4,
-//     depth: 0.4,
-//     height: 1
-// }, app.scene); 
-// box2.setPivotPoint(new Vector3(0, 0, 0.2))
-// box2.position = new Vector3(1, 0.5, globalZ)
-// box2.rotation = new Vector3(0, 45, 0)
-// box2.material = blueMaterial
-
-const pinkMaterial = new StandardMaterial('pinkMaterial', app.scene)
-pinkMaterial.diffuseColor = new Color3(1, 0, 1)
 
 const cover = MeshBuilder.CreateBox('cover', {
     width: 0.4,
@@ -243,37 +233,38 @@ const cover = MeshBuilder.CreateBox('cover', {
     height: 0.05
 }, app.scene)
 cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
-// cover.rotation.x = Tools.ToRadians(45)
 cover.position = new Vector3(0, 1.025, globalZ)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
     transformType: QuestJointTransform.POSITION,
     axis: QuestJointAxis.Z,
-    step: 0.05,
     min: 0,
-    max: 0.4
-    // transformType: QuestJointTransform.ROTATION,
-    // axis: QuestJointAxis.X,
-    // step: 0.05,
-    // min: 0,
-    // max: 60
+    max: 0.4  
 })
 
-// const cover2 = MeshBuilder.CreateBox('cover', {
-//     width: 0.4,
-//     depth: 0.4,
-//     height: 0.05
-// }, app.scene)
-// cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
-// cover2.position = new Vector3(1, 1.025, globalZ)
-// cover2.rotation = new Vector3(0, 45, 0)
-// cover2.material = pinkMaterial
-// new QuestJoint(jointsController, cover2, {
-//     transformType: QuestJointTransform.ROTATION,
-//     axis: QuestJointAxis.Z,
-//     step: 0.02,
-//     min: 0,
-//     max: 60
-// })
+// Box 2
+const box2 = MeshBuilder.CreateBox('box', {
+    width: 0.4,
+    depth: 0.4,
+    height: 1
+}, app.scene); 
+box2.setPivotPoint(new Vector3(0, 0, 0.2))
+box2.position = new Vector3(1, 0.5, globalZ)
+box2.material = blueMaterial
+
+const cover2 = MeshBuilder.CreateBox('cover', {
+    width: 0.4,
+    depth: 0.4,
+    height: 0.05
+}, app.scene)
+cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
+cover2.position = new Vector3(1, 1.025, globalZ)
+cover2.material = pinkMaterial
+new QuestJoint(jointsController, cover2, {
+    transformType: QuestJointTransform.ROTATION,
+    axis: QuestJointAxis.X,
+    min: 0,
+    max: 60
+})
 
 setupXR(app.scene)
