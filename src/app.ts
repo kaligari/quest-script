@@ -27,7 +27,7 @@ enum QuestJointAxis {
 }
 
 type QuestJointParams = {
-    transform: QuestJointTransform
+    transformType: QuestJointTransform
     axis: QuestJointAxis
     step: number
     min: number
@@ -58,13 +58,18 @@ class QuestJointController {
 class QuestJoint {
     instance: QuestJointController
     state: QuestJointState
-    activeMesh: Mesh
-    transform: QuestJointTransform
+    mesh: Mesh
+    transformType: QuestJointTransform
     axis: QuestJointAxis
-    STEP: number
-    MAX: number
-    MIN: number
-    initPosition: Vector3
+    step: number
+    max: number
+    min: number
+    maxPosition: number | undefined
+    minPosition: number | undefined
+    initObjectPosition: number | undefined
+    initOnceObjectPosition: number | undefined
+    initControllerPosition: number | undefined
+    initDistance: number | undefined
 
     constructor(
         instance: QuestJointController,
@@ -74,27 +79,55 @@ class QuestJoint {
         // Init
         this.instance = instance
         this.state = QuestJointState.IDLE
-        this.activeMesh = mesh
-        this.initPosition = mesh.getAbsolutePivotPoint().clone()
-        console.log(this.initPosition);
+        this.mesh = mesh
+        this.initObjectPosition = undefined
+        this.initOnceObjectPosition = undefined
+        this.initControllerPosition = undefined
+        this.maxPosition = undefined
+        this.minPosition = undefined
+        this.initDistance = undefined
         
         // Params
-        this.transform = params.transform
+        this.transformType = params.transformType
         this.axis = params.axis
-        this.STEP = params.step
-        this.MIN = params.min
-        this.MAX = params.max
+        this.step = params.step
+        this.min = params.min
+        this.max = params.max
 
         // Init buttons observable
         this.instance.scene.onPointerObservable.add(() => {
+            if(this.initObjectPosition === undefined) {
+                this.initObjectPosition = this.mesh.position[this.axis]
+            }
+            if(this.initOnceObjectPosition === undefined) {
+                this.initOnceObjectPosition = this.mesh.position[this.axis]
+            }
+            if(this.maxPosition === undefined && this.initObjectPosition !== undefined) {
+                this.maxPosition = this.initObjectPosition + this.max
+            }
+            if(this.minPosition === undefined && this.initObjectPosition !== undefined) {
+                this.minPosition = this.initObjectPosition + this.min
+            }
+            if(this.initControllerPosition === undefined) {
+                this.initControllerPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
+            }
+            if(this.initDistance === undefined && this.initControllerPosition !== undefined) {
+                this.initDistance = Math.abs(this.initObjectPosition - this.initControllerPosition)
+                console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
+            }
             // Check if mesh is intersecting with controller mesh
-            if (this.activeMesh.intersectsMesh(this.instance.controllerMesh, false)) {
+            if (this.mesh.intersectsMesh(this.instance.controllerMesh, false)) {
                 this.state = QuestJointState.HOLDING
+                // console.log('holding')
             }
         }, PointerEventTypes.POINTERDOWN)
 
         this.instance.scene.onPointerObservable.add(() => {
             this.state = QuestJointState.DROPPING
+            console.log(this.mesh.name, this.initControllerPosition, this.initObjectPosition, this.initDistance, this.maxPosition, this.minPosition)
+            this.initObjectPosition = undefined
+            this.initControllerPosition = undefined
+            this.initDistance = undefined
         }, PointerEventTypes.POINTERUP)
 
         this.instance.scene.onBeforeRenderObservable.add(() => {
@@ -105,85 +138,70 @@ class QuestJoint {
 
     holdingAnimation() {
         if(this.instance.controllerMesh !== null && this.state === QuestJointState.HOLDING) {
-            const startDistance = new Vector3(0, 0, 0)
-            startDistance.x = this.activeMesh.getAbsolutePivotPoint().x - this.instance.controllerMesh.parent?.['position'].x
-            startDistance.y = this.activeMesh.getAbsolutePivotPoint().y - this.instance.controllerMesh.parent?.['position'].y
-            startDistance.z = this.activeMesh.getAbsolutePivotPoint().z - this.instance.controllerMesh.parent?.['position'].z
-            startDistance.y *= -1
-            switch(this.transform) {
+            switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
-                    const desiredValue = Math.atan2(startDistance.y, startDistance.z)
+
+                    // const startDistance = new Vector3(0, 0, 0)
+                    // startDistance.x = this.mesh.getAbsolutePivotPoint().x - this.instance.controllerMesh.parent?.['position'].x
+                    // startDistance.y = this.mesh.getAbsolutePivotPoint().y - this.instance.controllerMesh.parent?.['position'].y
+                    // startDistance.z = this.mesh.getAbsolutePivotPoint().z - this.instance.controllerMesh.parent?.['position'].z
+                    // startDistance.y *= -1
+
+                    // const desiredValue = Math.atan2(startDistance.y, startDistance.z)
         
-                    if(this.activeMesh.rotation[this.axis] < desiredValue) {
-                        if(this.activeMesh.rotation[this.axis] < Tools.ToRadians(this.MAX)) {
-                            if(Math.abs(this.activeMesh.rotation[this.axis] - desiredValue) > this.STEP) {
-                                this.activeMesh.rotation[this.axis] += this.STEP
-                            } else {
-                                this.activeMesh.rotation[this.axis] = desiredValue
-                            }
-                        }
-                    }
+                    // if(this.mesh.rotation[this.axis] < desiredValue) {
+                    //     if(this.mesh.rotation[this.axis] < Tools.ToRadians(this.max)) {
+                    //         if(Math.abs(this.mesh.rotation[this.axis] - desiredValue) > this.step) {
+                    //             this.mesh.rotation[this.axis] += this.step
+                    //         } else {
+                    //             this.mesh.rotation[this.axis] = desiredValue
+                    //         }
+                    //     }
+                    // }
         
-                    if(this.activeMesh.rotation[this.axis] > desiredValue) {
-                        if(this.activeMesh.rotation[this.axis] > Tools.ToRadians(this.MIN)) {
-                            if(Math.abs(this.activeMesh.rotation[this.axis] - desiredValue) > this.STEP) {
-                                this.activeMesh.rotation[this.axis] -= this.STEP
-                            } else {
-                                this.activeMesh.rotation[this.axis] = desiredValue
-                            }
-                        }
-                    }
+                    // if(this.mesh.rotation[this.axis] > desiredValue) {
+                    //     if(this.mesh.rotation[this.axis] > Tools.ToRadians(this.min)) {
+                    //         if(Math.abs(this.mesh.rotation[this.axis] - desiredValue) > this.step) {
+                    //             this.mesh.rotation[this.axis] -= this.step
+                    //         } else {
+                    //             this.mesh.rotation[this.axis] = desiredValue
+                    //         }
+                    //     }
+                    // }
                     break;
                 case QuestJointTransform.POSITION:
+                    if(this.initDistance) {
+                        const controllerPosition = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
+                        
 
-                    // if(this.activeMesh.position[this.axis] < startDistance[this.axis]) {
-                        if(this.activeMesh.position[this.axis] < this.initPosition[this.axis] + this.MAX) {
-                            // if(Math.abs(this.activeMesh.position[this.axis] - startDistance[this.axis]) > this.STEP) {
-                            //     this.activeMesh.position[this.axis] += this.STEP
-                            // } else {
-                                this.activeMesh.position[this.axis] = this.initPosition[this.axis] - startDistance[this.axis]
-                                // console.log(this.initPosition[this.axis]);
-                                
-                            // }
-                        }
-                    // }
-        
-                    // if(this.activeMesh.position[this.axis] > startDistance[this.axis]) {
-                        if(this.activeMesh.position[this.axis] > this.initPosition[this.axis] + this.MIN) {
-                            // if(Math.abs(this.activeMesh.position[this.axis] - startDistance[this.axis]) > this.STEP) {
-                            //     this.activeMesh.position[this.axis] -= this.STEP
-                            // } else {
-                                this.activeMesh.position[this.axis] = this.initPosition[this.axis] - startDistance[this.axis]
-                        //     }
-                        }
-                    // }
+                        this.mesh.position[this.axis] = controllerPosition + this.initDistance
+                    }
+                    
                     break;
             }
         }
     }
 
     dropAnimation() {
-        switch(this.transform) {
-            case QuestJointTransform.ROTATION:
-                if(this.activeMesh !== undefined && this.state === QuestJointState.DROPPING) {
-                    if(this.activeMesh.rotation[this.axis] >= Tools.ToRadians(this.MIN) + this.STEP){
-                        this.activeMesh.rotation[this.axis] -= this.STEP
+        if(this.mesh !== undefined && this.state === QuestJointState.DROPPING) {
+            switch(this.transformType) {
+                case QuestJointTransform.ROTATION:
+                    if(this.mesh.rotation[this.axis] >= Tools.ToRadians(this.min) + this.step){
+                        this.mesh.rotation[this.axis] -= this.step
                     } else {
                         this.state = QuestJointState.IDLE
-                        this.activeMesh.rotation[this.axis] = this.MIN
+                        this.mesh.rotation[this.axis] = this.min
                     }
-                }
+                    break;
+                case QuestJointTransform.POSITION:
+                    // if(this.initObjectPosition && this.mesh.position[this.axis] >= this.initObjectPosition[this.axis] + this.min + this.step){
+                    //     this.mesh.position[this.axis] -= this.step
+                    // } else if(this.initObjectPosition) {
+                    //     this.state = QuestJointState.IDLE
+                    //     this.mesh.position[this.axis] = this.initObjectPosition[this.axis] + this.min
+                    // }
                 break;
-            case QuestJointTransform.POSITION:
-                if(this.activeMesh !== undefined && this.state === QuestJointState.DROPPING) {
-                    if(this.activeMesh.position[this.axis] >= this.initPosition[this.axis] + this.MIN + this.STEP){
-                        this.activeMesh.position[this.axis] -= this.STEP
-                    } else {
-                        this.state = QuestJointState.IDLE
-                        this.activeMesh.position[this.axis] = this.initPosition[this.axis] + this.MIN
-                    }
-                }
-            break;
+            }
         }
     }
 }
@@ -243,21 +261,21 @@ const cover = MeshBuilder.CreateBox('cover', {
     depth: 0.4,
     height: 0.05
 }, app.scene)
-cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
+// cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
 // cover.rotation.x = Tools.ToRadians(45)
 cover.position = new Vector3(0, 1.025, globalZ)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
-    // transform: QuestJointTransform.POSITION,
-    // axis: QuestJointAxis.Z,
-    // step: 0.05,
-    // min: 0,
-    // max: 0.3
-    transform: QuestJointTransform.ROTATION,
-    axis: QuestJointAxis.X,
+    transformType: QuestJointTransform.POSITION,
+    axis: QuestJointAxis.Z,
     step: 0.05,
     min: 0,
-    max: 60
+    max: 0.4
+    // transformType: QuestJointTransform.ROTATION,
+    // axis: QuestJointAxis.X,
+    // step: 0.05,
+    // min: 0,
+    // max: 60
 })
 
 const cover2 = MeshBuilder.CreateBox('cover', {
@@ -270,9 +288,9 @@ cover2.position = new Vector3(1, 1.025, globalZ)
 cover2.rotation = new Vector3(0, 45, 0)
 cover2.material = pinkMaterial
 new QuestJoint(jointsController, cover2, {
-    transform: QuestJointTransform.ROTATION,
+    transformType: QuestJointTransform.ROTATION,
     axis: QuestJointAxis.Z,
-    step: 0.05,
+    step: 0.02,
     min: 0,
     max: 60
 })
