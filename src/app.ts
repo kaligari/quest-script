@@ -73,6 +73,8 @@ class QuestJoint {
     initDistance: Vector3
     initController: Vector3
     initPosition: Vector3
+    initAngle: number
+    initOnceAngle: number
     initOncePosition: Vector3
     initQuaternion: Quaternion
 
@@ -96,6 +98,8 @@ class QuestJoint {
         this.maxPosition = 0
         this.minPosition = 0
         this.initQuaternion = new Quaternion()
+        this.initAngle = 0
+        this.initOnceAngle = 0
         
         // Params
         this.transformType = params.transformType
@@ -110,6 +114,7 @@ class QuestJoint {
                 // this.initDistance = this.instance.controllerMesh.parent?.['position'].clone().subtract(this.mesh.position.clone())
                 this.initController = this.instance.controllerMesh.parent?.['position'].clone()
                 this.initPosition = this.mesh.getPositionExpressedInLocalSpace()
+                this.initAngle = this.mesh.rotation[this.axis]
                 this.isInit = true
             }
             // Init once since models are loaded
@@ -119,6 +124,8 @@ class QuestJoint {
                 this.initQuaternion = this.mesh.absoluteRotationQuaternion.clone()
                 // Inverse quaternion to work directly on axis given in options
                 this.initQuaternion = Quaternion.Inverse(this.initQuaternion)
+                // Calc angles
+                this.initOnceAngle = this.calcAxis()
                 this.isInitOnce = true
             }
             // Check if mesh is intersecting with controller mesh
@@ -140,6 +147,22 @@ class QuestJoint {
         })
     }
 
+    forceVector(): Vector3 {
+        // Get controller vector - from init point to current
+        const controllerVector = this.instance.controllerMesh.parent?.['position'].subtract(this.initController)
+        // Create new empty force vector
+        const forceVector = new Vector3(0, 0, 0)
+        // Rotate controller vector to this inverted quaternion
+        controllerVector.rotateByQuaternionAroundPointToRef(this.initQuaternion, Vector3.Zero(), forceVector)
+        return forceVector
+    }
+
+    calcAxis(): number {
+        const axis1 = this.mesh.getPivotPoint().y - this.forceVector().y
+        const axis2 = this.mesh.getPivotPoint().z - this.forceVector().z
+        return Math.atan2(axis1 * -1, axis2)
+    }
+
     holdingAnimation() {
         if(this.instance.controllerMesh !== null && this.state === QuestJointState.HOLDING) {
             let desiredValue
@@ -147,20 +170,10 @@ class QuestJoint {
             let min
             let max
 
-            // Get controller vector - from init point to current
-            const controllerVector = this.instance.controllerMesh.parent?.['position'].subtract(this.initController)
-            // Create new empty force vector
-            const forceVector = new Vector3(0, 0, 0)
-            // Rotate controller vector to this inverted quaternion
-            controllerVector.rotateByQuaternionAroundPointToRef(this.initQuaternion, Vector3.Zero(), forceVector)
-            
             switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
-                    // Calc tangent of rotation angle for mesh and controller positions
-                    const axis1 = this.mesh.getPivotPoint().y - forceVector.y
-                    const axis2 = this.mesh.getPivotPoint().z - forceVector.z
-                    desiredValue = Math.atan2(axis1 * -1, axis2)
-
+                    desiredValue = this.calcAxis() + this.initAngle - this.initOnceAngle
+                    
                     max = Tools.ToRadians(this.max)
                     min = Tools.ToRadians(this.min)
 
@@ -177,7 +190,7 @@ class QuestJoint {
                     break;
                 case QuestJointTransform.POSITION:
                     
-                    desiredValue = forceVector[this.axis]
+                    desiredValue = this.forceVector()[this.axis]
                     max = this.max
                     min = this.min
                     
@@ -278,14 +291,14 @@ cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
 cover.position = new Vector3(0, 1.025, globalZ)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
-    // transformType: QuestJointTransform.ROTATION,
-    // axis: QuestJointAxis.X,
-    // min: 0,
-    // max: 60
-    transformType: QuestJointTransform.POSITION,
+    transformType: QuestJointTransform.ROTATION,
     axis: QuestJointAxis.X,
     min: 0,
-    max: .4
+    max: 60
+    // transformType: QuestJointTransform.POSITION,
+    // axis: QuestJointAxis.X,
+    // min: 0,
+    // max: .4
 })
 
 // Box 2
