@@ -1,4 +1,5 @@
 import { CannonJSPlugin, Color3, Color4, GizmoManager, Matrix, Mesh, MeshBuilder, PhysicsImpostor, PointerDragBehavior, PointerEventTypes, Quaternion, Scene, Space, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
+import { SheenBlock } from 'babylonjs'
 import QuestScript from './framework/framework'
 // import { Level } from './scenes/scene1'
 
@@ -36,6 +37,7 @@ type QuestJointParams = {
 class QuestJointController {
     scene: Scene
     controllerMesh: Mesh
+    haptic: any
     
     constructor(scene: Scene) {
         // Bind with scene
@@ -45,12 +47,27 @@ class QuestJointController {
         this.controllerMesh = MeshBuilder.CreateBox('controllerMesh', { size: 0.1 }, this.scene)
         this.controllerMesh.visibility = 0.5
         this.controllerMesh.showBoundingBox = true
+
+        // Haptics
+        this.haptic = undefined
     }
 
     addMeshController(mesh) {
         this.controllerMesh.setParent(mesh)
         this.controllerMesh.position = Vector3.ZeroReadOnly;
         this.controllerMesh.rotationQuaternion = Quaternion.Identity();
+    }
+
+    addHaptic(haptic) {
+        if(haptic) {
+            this.haptic = haptic
+        }
+    }
+
+    shake(intensy, duration) {
+        if(this.haptic) {
+            this.haptic.pulse(intensy, duration)
+        }
     }
 }
 
@@ -60,6 +77,7 @@ class QuestJoint {
     // State
     isInitOnce: boolean
     isInit: boolean
+    isShaked: boolean
     // Params
     mesh: Mesh
     transformType: QuestJointTransform
@@ -78,6 +96,8 @@ class QuestJoint {
     initOncePosition: Vector3
     initQuaternion: Quaternion
 
+    oldValue: number
+
     constructor(
         instance: QuestJointController,
         mesh: Mesh,
@@ -90,6 +110,7 @@ class QuestJoint {
         
         this.isInitOnce = false
         this.isInit = false
+        this.isShaked = false
         
         this.initDistance = new Vector3(0, 0, 0)
         this.initController = new Vector3(0, 0, 0)
@@ -106,6 +127,8 @@ class QuestJoint {
         this.axis = params.axis
         this.min = params.min
         this.max = params.max
+
+        this.oldValue = 0
 
         // Init buttons observable
         this.instance.scene.onPointerObservable.add(() => {
@@ -163,6 +186,13 @@ class QuestJoint {
         return Math.atan2(axis1 * -1, axis2)
     }
 
+    shake() {
+        if(!this.isShaked) {
+            this.instance.shake(0.25, 50)
+            this.isShaked = true
+        }
+    }
+
     holdingAnimation() {
         if(this.instance.controllerMesh !== null && this.state === QuestJointState.HOLDING) {
             let desiredValue
@@ -173,18 +203,25 @@ class QuestJoint {
             switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
                     desiredValue = this.calcAxis() + this.initAngle - this.initOnceAngle
+
+                    if(Tools.ToDegrees(this.mesh.rotation[this.axis] + this.initOnceAngle) > 179){
+                    //     this.mesh.rotation[this.axis] = this.mesh.rotation[this.axis] + this.initOnceAngle
+                        console.log(Tools.ToDegrees(this.mesh.rotation[this.axis] + this.initOnceAngle))
+                    }
                     
                     max = Tools.ToRadians(this.max)
                     min = Tools.ToRadians(this.min)
 
                     if(desiredValue > max) {
                         meshTransform  = max
+                        this.shake()
                     } else if(desiredValue < min) {
                         meshTransform  = min
+                        this.shake()
                     } else {
                         meshTransform = desiredValue
                     }
-
+                    
                     this.mesh.rotation[this.axis] = meshTransform
 
                     break;
@@ -196,11 +233,18 @@ class QuestJoint {
                     
                     if(desiredValue > max) {
                         meshTransform  = max
+                        this.shake()
                     } else if(desiredValue < min) {
                         meshTransform  = min
+                        this.shake()
                     } else {
                         meshTransform = desiredValue
                     }
+                    // Check if value has changed
+                    if(meshTransform != this.oldValue) {
+                        this.isShaked = false
+                    }
+                    this.oldValue = meshTransform
                     // Transform mesh in axis given in options
                     this.mesh.setPositionWithLocalVector(this.initPosition.add(new Vector3(
                         this.axis === QuestJointAxis.X ? meshTransform : 0,
@@ -250,8 +294,18 @@ const setupXR = async (scene) => {
             motionController.onModelLoadedObservable.add(() => {
                 if(motionController.handedness === 'right') {      
                     jointsController.addMeshController(inputSource.grip)
+                    // Search for haptic
+                    if (motionController.gamepadObject !== undefined) {
+                        if (motionController.gamepadObject.hapticActuators !== undefined) {
+                            console.log(`hapticActuators are defined.`);
+                            if (motionController.gamepadObject.hapticActuators.length > 0) {
+                                console.log(`Has at least one haptic actuator.`);
+                                jointsController.addHaptic(motionController.gamepadObject.hapticActuators[0])
+                            }
+                        }
+                    }
                 }
-            })            
+            })    
         })
     })
 }
@@ -289,16 +343,17 @@ const cover = MeshBuilder.CreateBox('cover', {
 cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
 // cover.rotation = new Vector3(0, Tools.ToRadians(90), 0)
 cover.position = new Vector3(0, 1.025, globalZ)
+// cover.rotation = new Vector3(Tools.ToRadians(179), 0)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
-    transformType: QuestJointTransform.ROTATION,
-    axis: QuestJointAxis.X,
-    min: 0,
-    max: 60
-    // transformType: QuestJointTransform.POSITION,
+    // transformType: QuestJointTransform.ROTATION,
     // axis: QuestJointAxis.X,
     // min: 0,
-    // max: .4
+    // max: 720
+    transformType: QuestJointTransform.POSITION,
+    axis: QuestJointAxis.X,
+    min: 0,
+    max: .4
 })
 
 // Box 2
@@ -319,7 +374,7 @@ new QuestJoint(jointsController, cover, {
 // }, app.scene)
 // cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
 // cover2.position = new Vector3(1, 1.025, globalZ)
-// // cover2.rotation = new Vector3(0, 45, 0)
+// cover2.rotation = new Vector3(0, Tools.ToDegrees(45), 0)
 // cover2.material = pinkMaterial
 // new QuestJoint(jointsController, cover2, {
 //     transformType: QuestJointTransform.POSITION,
