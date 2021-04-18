@@ -1,4 +1,4 @@
-import { CannonJSPlugin, Color3, Color4, Mesh, MeshBuilder, PhysicsImpostor, PointerEventTypes, Quaternion, Scene, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
+import { CannonJSPlugin, Color3, Color4, GizmoManager, Matrix, Mesh, MeshBuilder, PhysicsImpostor, PointerDragBehavior, PointerEventTypes, Quaternion, Scene, Space, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
 import QuestScript from './framework/framework'
 // import { Level } from './scenes/scene1'
 
@@ -70,7 +70,10 @@ class QuestJoint {
     maxPosition: number
     minPosition: number
     // Distance between mesh and controller - once on every pointer down 
-    initDistance: number
+    initDistance: Vector3
+    initController: Vector3
+    initPosition: Vector3
+    initOncePosition: Vector3
 
     constructor(
         instance: QuestJointController,
@@ -85,7 +88,10 @@ class QuestJoint {
         this.isInitOnce = false
         this.isInit = false
         
-        this.initDistance = 0
+        this.initDistance = new Vector3(0, 0, 0)
+        this.initController = new Vector3(0, 0, 0)
+        this.initPosition = new Vector3(0, 0, 0)
+        this.initOncePosition = new Vector3(0, 0, 0)
         this.maxPosition = 0
         this.minPosition = 0
         
@@ -99,13 +105,14 @@ class QuestJoint {
         this.instance.scene.onPointerObservable.add(() => {
             // Init every pointerdown
             if(!this.isInit) {
-                this.initDistance = this.mesh.position[this.axis] - this.instance.controllerMesh.parent?.['position'][`_${this.axis}`]
+                // this.initDistance = this.instance.controllerMesh.parent?.['position'].clone().subtract(this.mesh.position.clone())
+                this.initController = this.instance.controllerMesh.parent?.['position'].clone()
+                this.initPosition = this.mesh.getPositionExpressedInLocalSpace()
                 this.isInit = true
             }
             // Init once since models are loaded
             if(!this.isInitOnce) {
-                this.maxPosition = this.mesh.position[this.axis] + this.max
-                this.minPosition = this.mesh.position[this.axis] + this.min
+                this.initOncePosition = this.mesh.position.clone()
                 this.isInitOnce = true
             }
             // Check if mesh is intersecting with controller mesh
@@ -142,23 +149,39 @@ class QuestJoint {
                     min = Tools.ToRadians(this.min)
                     break;
                 case QuestJointTransform.POSITION:
-                    // Calc desired position based on current controller position
-                    // and distance between mesh and controller
-                    desiredValue = this.instance.controllerMesh.parent?.['position'][`_${this.axis}`] + this.initDistance
-                    max = this.maxPosition
-                    min = this.minPosition
+                    // Get controller vector - from init point to current
+                    const controllerVector = this.instance.controllerMesh.parent?.['position'].subtract(this.initController)
+                    // Create new empty force vector
+                    const forceVector = new Vector3(0, 0, 0)
+                    // Get current mesh rotation quaternion
+                    let quaternion = this.mesh.absoluteRotationQuaternion.clone()
+                    // Inverse quaternion to work directly on axis given in options
+                    quaternion = Quaternion.Inverse(quaternion)
+                    // Rotate controller vector to this inverted quaternion
+                    controllerVector.rotateByQuaternionAroundPointToRef(quaternion, Vector3.Zero(), forceVector)
+                    
+                    let meshTransform
+                    desiredValue = forceVector[this.axis]
+                    max = this.max
+                    min = this.min
+                    
+                    if(desiredValue > max) {
+                        meshTransform  = max
+                    } else if(desiredValue < min) {
+                        meshTransform  = min
+                    } else {
+                        meshTransform = desiredValue
+                    }
+                    // Transform mesh in axis given in options
+                    this.mesh.setPositionWithLocalVector(this.initPosition.add(new Vector3(
+                        this.axis === QuestJointAxis.X ? meshTransform : 0,
+                        this.axis === QuestJointAxis.Y ? meshTransform : 0,
+                        this.axis === QuestJointAxis.Z ? meshTransform : 0
+                    )))
                     break;
             }
-            // Transform mesh
-            let meshTransform
-            if(desiredValue > max) {
-                meshTransform  = max
-            } else if(desiredValue < min) {
-                meshTransform  = min
-            } else {
-                meshTransform = desiredValue
-            }
-            this.mesh[this.transformType][this.axis] = meshTransform
+
+            
         }
     }
 
@@ -225,9 +248,9 @@ const box = MeshBuilder.CreateBox('box', {
     depth: 0.4,
     height: 1
 }, app.scene); 
-box.setPivotPoint(new Vector3(0, 0, 0.2))
+// box.setPivotPoint(new Vector3(0, 0, 0.2))
+box.rotation = new Vector3(0, Tools.ToRadians(45), 0)
 box.position = new Vector3(0, 0.5, globalZ)
-// box.rotation = new Vector3(0, 45, 0)
 box.material = blueMaterial
 
 const cover = MeshBuilder.CreateBox('cover', {
@@ -235,13 +258,13 @@ const cover = MeshBuilder.CreateBox('cover', {
     depth: 0.4,
     height: 0.05
 }, app.scene)
-cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
+// cover.setPivotPoint(new Vector3(0, 0, 0))
+cover.rotation = new Vector3(0, Tools.ToRadians(45), 0)
 cover.position = new Vector3(0, 1.025, globalZ)
-// cover.rotation = new Vector3(0, 45, 0)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
     transformType: QuestJointTransform.POSITION,
-    axis: QuestJointAxis.Z,
+    axis: QuestJointAxis.Y,
     min: 0,
     max: 0.4  
 })
@@ -267,10 +290,10 @@ cover2.position = new Vector3(1, 1.025, globalZ)
 // cover2.rotation = new Vector3(0, 45, 0)
 cover2.material = pinkMaterial
 new QuestJoint(jointsController, cover2, {
-    transformType: QuestJointTransform.ROTATION,
+    transformType: QuestJointTransform.POSITION,
     axis: QuestJointAxis.X,
-    min: 0,
-    max: 60
+    min: -0.2,
+    max: 0.2
 })
 
 setupXR(app.scene)
