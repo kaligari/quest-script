@@ -1,14 +1,7 @@
-import { CannonJSPlugin, Color3, Color4, GizmoManager, Matrix, Mesh, MeshBuilder, PhysicsImpostor, PointerDragBehavior, PointerEventTypes, Quaternion, Scene, Space, StandardMaterial, Tools, Vector3, WebXRState } from '@babylonjs/core'
-import { SheenBlock } from 'babylonjs'
+import { Color3, Mesh, MeshBuilder, PointerEventTypes, Quaternion, Scene, StandardMaterial, Tools, Vector3 } from '@babylonjs/core'
 import QuestScript from './framework/framework'
-// import { Level } from './scenes/scene1'
 
 const app = new QuestScript()
-// app.scene.debugLayer.show()
-
-// app.scene.debugLayer.show()
-// new Level(app.scene)
-// app.setHandMesh(level.meshes[0])
 enum QuestJointState {
     IDLE,
     HOLDING,
@@ -96,6 +89,7 @@ class QuestJoint {
     initOncePosition: Vector3
     initQuaternion: Quaternion
 
+    value: number
     oldValue: number
 
     constructor(
@@ -128,6 +122,7 @@ class QuestJoint {
         this.min = params.min
         this.max = params.max
 
+        this.value = 0
         this.oldValue = 0
 
         // Init buttons observable
@@ -142,7 +137,7 @@ class QuestJoint {
             }
             // Init once since models are loaded
             if(!this.isInitOnce) {
-                this.initOncePosition = this.mesh.position.clone()
+                this.initOncePosition = this.mesh.getPositionExpressedInLocalSpace().clone()
                 // Get current mesh rotation quaternion
                 this.initQuaternion = this.mesh.absoluteRotationQuaternion.clone()
                 // Inverse quaternion to work directly on axis given in options
@@ -196,7 +191,6 @@ class QuestJoint {
     holdingAnimation() {
         if(this.instance.controllerMesh !== null && this.state === QuestJointState.HOLDING) {
             let desiredValue
-            let meshTransform
             let min
             let max
 
@@ -213,43 +207,43 @@ class QuestJoint {
                     min = Tools.ToRadians(this.min)
 
                     if(desiredValue > max) {
-                        meshTransform  = max
+                        this.value  = max
                         this.shake()
                     } else if(desiredValue < min) {
-                        meshTransform  = min
+                        this.value  = min
                         this.shake()
                     } else {
-                        meshTransform = desiredValue
+                        this.value = desiredValue
                     }
                     
-                    this.mesh.rotation[this.axis] = meshTransform
+                    this.mesh.rotation[this.axis] = this.value
 
                     break;
                 case QuestJointTransform.POSITION:
                     
                     desiredValue = this.forceVector()[this.axis]
-                    max = this.max
-                    min = this.min
+                    max = this.max - this.initPosition[this.axis]
+                    min = this.min - this.initPosition[this.axis]
                     
                     if(desiredValue > max) {
-                        meshTransform  = max
+                        this.value  = max
                         this.shake()
                     } else if(desiredValue < min) {
-                        meshTransform  = min
+                        this.value  = min
                         this.shake()
                     } else {
-                        meshTransform = desiredValue
+                        this.value = desiredValue
                     }
                     // Check if value has changed
-                    if(meshTransform != this.oldValue) {
+                    if(this.value != this.oldValue) {
                         this.isShaked = false
                     }
-                    this.oldValue = meshTransform
+                    this.oldValue = this.value
                     // Transform mesh in axis given in options
                     this.mesh.setPositionWithLocalVector(this.initPosition.add(new Vector3(
-                        this.axis === QuestJointAxis.X ? meshTransform : 0,
-                        this.axis === QuestJointAxis.Y ? meshTransform : 0,
-                        this.axis === QuestJointAxis.Z ? meshTransform : 0
+                        this.axis === QuestJointAxis.X ? this.value : 0,
+                        this.axis === QuestJointAxis.Y ? this.value : 0,
+                        this.axis === QuestJointAxis.Z ? this.value : 0
                     )))
                     break;
             }
@@ -310,14 +304,12 @@ const setupXR = async (scene) => {
     })
 }
 
-const globalZ = 0.5
-
 // Ground
 const ground = MeshBuilder.CreateGround('ground', {
     width: 16,
     height: 16
 }, app.scene)
-ground.position = new Vector3(0, 0, globalZ)
+ground.position = new Vector3(0, 0, 0.5)
 
 // Materials
 const blueMaterial = new StandardMaterial('blueMaterial', app.scene)
@@ -330,10 +322,8 @@ const box = MeshBuilder.CreateBox('box', {
     width: 0.4,
     depth: 0.4,
     height: 1
-}, app.scene); 
-// box.setPivotPoint(new Vector3(0, 0, 0.2))
-// box.rotation = new Vector3(0, Tools.ToRadians(45), 0)
-box.position = new Vector3(0, 0.5, globalZ)
+}, app.scene)
+box.position = new Vector3(0, 0.5, 0.5)
 box.material = blueMaterial
 const cover = MeshBuilder.CreateBox('cover', {
     width: 0.4,
@@ -341,46 +331,38 @@ const cover = MeshBuilder.CreateBox('cover', {
     height: 0.05
 }, app.scene)
 cover.setPivotPoint(new Vector3(0, -0.025, 0.2))
-// cover.rotation = new Vector3(0, Tools.ToRadians(90), 0)
-cover.position = new Vector3(0, 1.025, globalZ)
-// cover.rotation = new Vector3(Tools.ToRadians(179), 0)
+cover.position = new Vector3(0, 1.025, 0.5)
 cover.material = pinkMaterial
 new QuestJoint(jointsController, cover, {
-    // transformType: QuestJointTransform.ROTATION,
-    // axis: QuestJointAxis.X,
-    // min: 0,
-    // max: 720
     transformType: QuestJointTransform.POSITION,
     axis: QuestJointAxis.X,
-    min: 0,
-    max: .4
+    min: -.4,
+    max: 0
 })
 
 // Box 2
-// const box2 = MeshBuilder.CreateBox('box', {
-//     width: 0.4,
-//     depth: 0.4,
-//     height: 1
-// }, app.scene); 
-// box2.setPivotPoint(new Vector3(0, 0, 0.2))
-// box2.position = new Vector3(1, 0.5, globalZ)
-// // box2.rotation = new Vector3(0, 45, 0)
-// box2.material = blueMaterial
+const box2 = MeshBuilder.CreateBox('box', {
+    width: 0.4,
+    depth: 0.4,
+    height: 1
+}, app.scene); 
+box2.setPivotPoint(new Vector3(0, 0, 0.2))
+box2.position = new Vector3(0.5, 0.5, 0.5)
+box2.material = blueMaterial
 
-// const cover2 = MeshBuilder.CreateBox('cover', {
-//     width: 0.4,
-//     depth: 0.4,
-//     height: 0.05
-// }, app.scene)
-// cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
-// cover2.position = new Vector3(1, 1.025, globalZ)
-// cover2.rotation = new Vector3(0, Tools.ToDegrees(45), 0)
-// cover2.material = pinkMaterial
-// new QuestJoint(jointsController, cover2, {
-//     transformType: QuestJointTransform.POSITION,
-//     axis: QuestJointAxis.X,
-//     min: -0.2,
-//     max: 0.2
-// })
+const cover2 = MeshBuilder.CreateBox('cover', {
+    width: 0.4,
+    depth: 0.4,
+    height: 0.05
+}, app.scene)
+cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
+cover2.position = new Vector3(0.5, 1.025, 0.5)
+cover2.material = pinkMaterial
+new QuestJoint(jointsController, cover2, {
+    transformType: QuestJointTransform.ROTATION,
+    axis: QuestJointAxis.X,
+    min: 0,
+    max: 60
+})
 
 setupXR(app.scene)
