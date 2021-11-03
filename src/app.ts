@@ -1,7 +1,6 @@
-import { Color3, Mesh, MeshBuilder, PointerEventTypes, Quaternion, Scene, StandardMaterial, Tools, Vector3 } from '@babylonjs/core'
-import { QuestJointController } from './framework/QuestJointController'
+import { Color3, MeshBuilder, StandardMaterial, Vector3 } from '@babylonjs/core'
 import QuestScript from './framework/QuestScript'
-import { QuestJointAxis, QuestJointParams, QuestJointState, QuestJointTransform } from './framework/types'
+import { QuestJointAxis, QuestJointTransform } from './framework/types'
 import { QuestJoint } from './framework/QuestJoint'
 
 const app = new QuestScript()

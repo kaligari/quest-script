@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, PointerEventTypes, Quaternion, Scene, StandardMaterial, Tools, Vector3 } from '@babylonjs/core'
+import { Mesh, PointerEventTypes, Quaternion, Tools, Vector3 } from '@babylonjs/core'
 import { QuestJointController } from './QuestJointController'
 import { QuestJointAxis, QuestJointParams, QuestJointState, QuestJointTransform } from './types'
 

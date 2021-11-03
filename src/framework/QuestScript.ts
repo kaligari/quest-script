@@ -24,7 +24,7 @@ export default class QuestScript {
         // initialize babylon scene and engine
         this.engine = new Engine(this.canvas, true)
         this.scene = new Scene(this.engine)
-        const light = new HemisphericLight("light", new Vector3(0, 1, 0), this.scene)
+        const light = new HemisphericLight('light', new Vector3(0, 1, 0), this.scene)
         light.intensity = 0.7
 
         this.camera = new FreeCamera('FlyCamera', new Vector3(0, 5, 0), this.scene)
