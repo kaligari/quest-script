@@ -3,6 +3,8 @@ import '@babylonjs/inspector'
 import '@babylonjs/loaders/glTF'
 import { Engine, Scene, Vector3, FreeCamera, HemisphericLight, MeshBuilder } from '@babylonjs/core'
 import { QuestJointController } from './QuestJointController'
+export * from './QuestJoint'
+export * from './types'
 
 export default class QuestScript {
     private canvas: HTMLCanvasElement
