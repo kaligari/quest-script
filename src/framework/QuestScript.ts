@@ -1,7 +1,8 @@
 import '@babylonjs/core/Debug/debugLayer'
 import '@babylonjs/inspector'
 import '@babylonjs/loaders/glTF'
-import { Engine, Scene, Vector3, FreeCamera, HemisphericLight } from '@babylonjs/core'
+import { Engine, Scene, Vector3, FreeCamera, HemisphericLight, MeshBuilder } from '@babylonjs/core'
+import { QuestJointController } from './QuestJointController'
 
 export default class QuestScript {
     private canvas: HTMLCanvasElement
@@ -9,6 +10,8 @@ export default class QuestScript {
     public scene: Scene
     public camera: FreeCamera
     public xr: any
+    public ground
+    public jointsController
 
     constructor() {
         // create the canvas html element and attach it to the webpage
@@ -28,6 +31,17 @@ export default class QuestScript {
         this.camera.setTarget(new Vector3(0, 1, 3))
         this.camera.attachControl(this.canvas, true)
 
+        // init ground
+        this.ground = MeshBuilder.CreateGround('ground', {
+            width: 16,
+            height: 16
+        }, this.scene)
+        this.ground.position = new Vector3(0, 0, 0.5)
+
+        this.jointsController = new QuestJointController(this.scene)
+    }
+
+    init() {
         // init WebXR
         this.initWebXR()
 
@@ -54,32 +68,27 @@ export default class QuestScript {
     }
 
     async initWebXR() {
+        const xrHelper = await this.scene.createDefaultXRExperienceAsync({ floorMeshes: [this.ground] })
         
-        // // WebXR controlls
-        // const makeGrabAreaMesh = (mesh, handedness) => {
-        //     let myGrabBox = MeshBuilder.CreateBox("abc", { size: 0.1 }, this.scene)
-        //    myGrabBox.visibility = 0.5
-        //    myGrabBox.showBoundingBox = true
-        //    myGrabBox.setParent(mesh)
-        //    myGrabBox.position = Vector3.ZeroReadOnly;
-        //    myGrabBox.rotationQuaternion = Quaternion.Identity();
-        //    if (handedness[0] === 'l') {
-        //      myGrabBox.locallyTranslate(new Vector3(0.1, 0, 0))
-        //    } else {
-        //      myGrabBox.locallyTranslate(new Vector3(-0.1, 0, 0))
-        //    }
-        //    return myGrabBox
-        // }
-
-        // this.xr = await this.scene.createDefaultXRExperienceAsync({})
-        
-        // this.xr.input.onControllerAddedObservable.add(inputSource => {
-        //     inputSource.onMotionControllerInitObservable.add(motionController => {
-        //       motionController.onModelLoadedObservable.add(() => {
-        //         let mesh = inputSource.grip
-        //         makeGrabAreaMesh(mesh, motionController.handedness)
-        //       })
-        //     })
-        // })
+        xrHelper.input.onControllerAddedObservable.add(inputSource => {
+            inputSource.onMotionControllerInitObservable.add(motionController => {
+                // add observable
+                motionController.onModelLoadedObservable.add(() => {
+                    if(motionController.handedness === 'right') {      
+                        this.jointsController.addMeshController(inputSource.grip)
+                        // Search for haptic
+                        if (motionController.gamepadObject !== undefined) {
+                            if (motionController.gamepadObject.hapticActuators !== undefined) {
+                                console.log(`hapticActuators are defined.`);
+                                if (motionController.gamepadObject.hapticActuators.length > 0) {
+                                    console.log(`Has at least one haptic actuator.`);
+                                    this.jointsController.addHaptic(motionController.gamepadObject.hapticActuators[0])
+                                }
+                            }
+                        }
+                    }
+                })    
+            })
+        })
     }
 }
