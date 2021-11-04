@@ -26,6 +26,9 @@ export class QuestJoint {
     initOnceAngle: number
     initOncePosition: Vector3
     initQuaternion: Quaternion
+    
+    initStep: number
+    step: number
 
     value: number
     oldValue: number
@@ -59,6 +62,9 @@ export class QuestJoint {
         this.axis = params.axis
         this.min = params.min
         this.max = params.max
+
+        this.initStep = 0.0005
+        this.step = this.initStep
 
         this.value = 0
         this.oldValue = 0
@@ -192,23 +198,29 @@ export class QuestJoint {
 
     dropAnimation() {
         if(this.mesh !== undefined && this.state === QuestJointState.DROPPING) {
+            const delta = this.instance.scene.getAnimationRatio()
             switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
-                    // if(this.mesh.rotation[this.axis] >= Tools.ToRadians(this.min) + this.step){
-                    //     this.mesh.rotation[this.axis] -= this.step
-                    // } else {
-                    //     this.state = QuestJointState.IDLE
-                    //     this.mesh.rotation[this.axis] = this.min
-                    // }
-                    break;
+                    if(this.mesh.rotation[this.axis] >= this.min + this.step * delta){
+                        this.mesh.rotation[this.axis] -= this.step * delta
+                        this.step += this.initStep * delta
+                    } else {
+                        this.state = QuestJointState.IDLE
+                        this.step = this.initStep
+                        this.mesh.rotation[this.axis] = this.min
+                    }
+                    break
                 case QuestJointTransform.POSITION:
-                    // if(this.initObjectPosition && this.mesh.position[this.axis] >= this.initObjectPosition[this.axis] + this.min + this.step){
-                    //     this.mesh.position[this.axis] -= this.step
-                    // } else if(this.initObjectPosition) {
-                    //     this.state = QuestJointState.IDLE
-                    //     this.mesh.position[this.axis] = this.initObjectPosition[this.axis] + this.min
-                    // }
-                break;
+                    if(this.mesh.position[this.axis] <= this.initPosition[this.axis] - this.step * delta){
+                        this.mesh.position[this.axis] += this.step * delta
+                        this.step += this.initStep * delta
+                        
+                    } else {
+                        this.state = QuestJointState.IDLE
+                        this.step = this.initStep
+                        this.mesh.position[this.axis] = this.initPosition[this.axis]
+                    }
+                    break
             }
         }
     }

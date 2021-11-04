@@ -13,6 +13,7 @@ export default class box2 {
         }, app.scene); 
         box.setPivotPoint(new Vector3(0, 0, 0.2))
         box.position = new Vector3(0.5, 0.5, 0.5)
+        // box.position = new Vector3(0, 0.5, 0.5)
         box.material = new BlueMaterial(app).material
         
         const cover2 = MeshBuilder.CreateBox('cover', {
@@ -22,6 +23,7 @@ export default class box2 {
         }, app.scene)
         cover2.setPivotPoint(new Vector3(0, -0.025, 0.2))
         cover2.position = new Vector3(0.5, 1.025, 0.5)
+        // cover2.position = new Vector3(0, 1.025, 0.5)
         cover2.material = new PinkMaterial(app).material
         new QuestJoint(app.jointsController, cover2, {
             transformType: QuestJointTransform.ROTATION,
