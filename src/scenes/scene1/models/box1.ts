@@ -24,7 +24,8 @@ export default class box1 {
             transformType: QuestJointTransform.POSITION,
             axis: QuestJointAxis.X,
             min: -.4,
-            max: 0
+            max: 0,
+            name: 'box1'
         })
     }
 }

@@ -1,10 +1,11 @@
 import { Mesh, PointerEventTypes, Quaternion, Tools, Vector3 } from '@babylonjs/core'
 import { QuestJointController } from './QuestJointController'
-import { QuestJointAxis, QuestJointParams, QuestJointState, QuestJointTransform } from './types'
+import { QuestJointAnimationDirection, QuestJointAxis, QuestJointParams, QuestJointState, QuestJointTransform } from './types'
 
 export class QuestJoint {
     instance: QuestJointController
     state: QuestJointState
+    name: string
     // State
     isInitOnce: boolean
     isInit: boolean
@@ -12,6 +13,7 @@ export class QuestJoint {
     // Params
     mesh: Mesh
     transformType: QuestJointTransform
+    animationDirection: QuestJointAnimationDirection
     axis: QuestJointAxis
     max: number
     min: number
@@ -27,8 +29,9 @@ export class QuestJoint {
     initOncePosition: Vector3
     initQuaternion: Quaternion
     
-    initStep: number
     step: number
+    velocity: number
+    weight: number
 
     value: number
     oldValue: number
@@ -42,6 +45,7 @@ export class QuestJoint {
         this.instance = instance
         this.state = QuestJointState.IDLE
         this.mesh = mesh
+        this.name = params.name || ''
         
         this.isInitOnce = false
         this.isInit = false
@@ -59,12 +63,14 @@ export class QuestJoint {
         
         // Params
         this.transformType = params.transformType
+        this.animationDirection = QuestJointAnimationDirection.IDLE
         this.axis = params.axis
         this.min = params.min
         this.max = params.max
 
-        this.initStep = 0.0005
-        this.step = this.initStep
+        this.step = 0.0005
+        this.velocity = this.step
+        this.weight = 0.01
 
         this.value = 0
         this.oldValue = 0
@@ -73,7 +79,6 @@ export class QuestJoint {
         this.instance.scene.onPointerObservable.add(() => {
             // Init every pointerdown
             if(!this.isInit) {
-                // this.initDistance = this.instance.controllerMesh.parent?.['position'].clone().subtract(this.mesh.position.clone())
                 this.initController = this.instance.controllerMesh.parent?.['position'].clone()
                 this.initPosition = this.mesh.getPositionExpressedInLocalSpace()
                 this.initAngle = this.mesh.rotation[this.axis]
@@ -97,8 +102,10 @@ export class QuestJoint {
         }, PointerEventTypes.POINTERDOWN)
 
         this.instance.scene.onPointerObservable.add(() => {
-            // Change state
-            this.state = QuestJointState.DROPPING
+            if(this.state === QuestJointState.HOLDING) {
+                // Change state
+                this.state = QuestJointState.DROPPING
+            }
             // Reset state
             this.isInit = false
         }, PointerEventTypes.POINTERUP)
@@ -198,26 +205,47 @@ export class QuestJoint {
 
     dropAnimation() {
         if(this.mesh !== undefined && this.state === QuestJointState.DROPPING) {
+            if(this.animationDirection === QuestJointAnimationDirection.IDLE) {
+                this.animationDirection = QuestJointAnimationDirection.BACKWARD
+            }
             const delta = this.instance.scene.getAnimationRatio()
             switch(this.transformType) {
                 case QuestJointTransform.ROTATION:
-                    if(this.mesh.rotation[this.axis] >= this.min + this.step * delta){
-                        this.mesh.rotation[this.axis] -= this.step * delta
-                        this.step += this.initStep * delta
-                    } else {
-                        this.state = QuestJointState.IDLE
-                        this.step = this.initStep
-                        this.mesh.rotation[this.axis] = this.min
+                    if(this.animationDirection === QuestJointAnimationDirection.BACKWARD) {
+                        if(this.mesh.rotation[this.axis] >= this.min + this.velocity * delta){
+                            this.mesh.rotation[this.axis] -= this.velocity * delta
+                            this.velocity += this.step * delta
+                        } else if (this.velocity < this.weight * delta) {
+                            this.animationDirection = QuestJointAnimationDirection.IDLE
+                            this.state = QuestJointState.IDLE
+                            this.velocity = this.step
+                            this.mesh.rotation[this.axis] = this.min
+                        } else {
+                            this.animationDirection = QuestJointAnimationDirection.FORWARD
+                            this.velocity -= this.weight * delta
+                        }
+                        //  else {
+                        //     this.state = QuestJointState.IDLE
+                        //     this.velocity = this.step
+                        //     this.mesh.rotation[this.axis] = this.min
+                        // }
+                    } else if(this.animationDirection === QuestJointAnimationDirection.FORWARD){
+                        if(this.mesh.rotation[this.axis] <= this.max + this.velocity * delta && this.velocity > 0){
+                            this.mesh.rotation[this.axis] += this.velocity * delta
+                            this.velocity -= this.step * delta
+                        } else {
+                            this.animationDirection = QuestJointAnimationDirection.BACKWARD
+                        }
                     }
                     break
                 case QuestJointTransform.POSITION:
-                    if(this.mesh.position[this.axis] <= this.initPosition[this.axis] - this.step * delta){
-                        this.mesh.position[this.axis] += this.step * delta
-                        this.step += this.initStep * delta
+                    if(this.mesh.position[this.axis] <= this.initPosition[this.axis] - this.velocity * delta){
+                        this.mesh.position[this.axis] += this.velocity * delta
+                        this.velocity += this.step * delta
                         
                     } else {
                         this.state = QuestJointState.IDLE
-                        this.step = this.initStep
+                        this.velocity = this.step
                         this.mesh.position[this.axis] = this.initPosition[this.axis]
                     }
                     break

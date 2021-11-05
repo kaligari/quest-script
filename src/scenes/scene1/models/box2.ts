@@ -29,7 +29,8 @@ export default class box2 {
             transformType: QuestJointTransform.ROTATION,
             axis: QuestJointAxis.X,
             min: 0,
-            max: 60
+            max: 60,
+            name: 'box2'
         })
     }
 }

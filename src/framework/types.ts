@@ -10,6 +10,12 @@ export enum QuestJointTransform {
     SCALING = 'scaling'
 }
 
+export enum QuestJointAnimationDirection {
+    BACKWARD = 'backward',
+    FORWARD = 'forward',
+    IDLE = 'idle'
+}
+
 export enum QuestJointAxis {
     X = 'x',
     Y = 'y',
@@ -21,4 +27,5 @@ export type QuestJointParams = {
     axis: QuestJointAxis
     min: number
     max: number
+    name?: string
 }
